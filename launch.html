@@ -17,7 +17,15 @@
         // SMART on FHIR EHR Launch
         // This page initiates the OAuth2 authorization flow
 
-        FHIR.oauth2.authorize({
+        // Clear any existing session data to force fresh login
+        sessionStorage.clear();
+
+        // Check if we came from logout (force re-select patient)
+        const urlParams = new URLSearchParams(window.location.search);
+        const forceReselect = urlParams.get('reselect') === 'true';
+
+        // Build authorize options
+        const authorizeOptions = {
             // Client ID - for sandbox testing, use a descriptive name
             // For production, you'll need to register with the EHR vendor
             clientId: "smart_bp_monitor",
@@ -32,8 +40,14 @@
 
             // Redirect to index.html after authorization
             redirectUri: "index.html"
+        };
 
-        }).catch(function(error) {
+        // If force reselect, add prompt parameter to force re-authentication
+        if (forceReselect) {
+            authorizeOptions.completeInTarget = true;
+        }
+
+        FHIR.oauth2.authorize(authorizeOptions).catch(function(error) {
             // Display error if authorization fails
             document.getElementById("error").style.display = "block";
             document.getElementById("error").innerHTML =

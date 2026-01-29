@@ -947,19 +947,19 @@ function importSmartwatch() {
 function logout() {
     // If in SMART mode, redirect back to launch.html to re-authorize
     if (appState.smartMode) {
-        // Clear SMART session
-        sessionStorage.removeItem('SMART_KEY');
+        // Clear ALL session storage to force fresh authorization
+        sessionStorage.clear();
 
-        // Also clear any other FHIR client session data
-        Object.keys(sessionStorage).forEach(key => {
-            if (key.startsWith('SMART') || key.includes('fhir')) {
-                sessionStorage.removeItem(key);
+        // Also clear FHIR-related localStorage
+        Object.keys(localStorage).forEach(key => {
+            if (key.startsWith('SMART') || key.includes('fhir') || key.includes('FHIR')) {
+                localStorage.removeItem(key);
             }
         });
 
-        // Redirect to launch.html to restart OAuth flow
-        // This will redirect to the SMART sandbox login/patient selection
-        window.location.href = 'launch.html';
+        // Redirect to launch.html with reselect parameter
+        // This will restart OAuth flow and prompt for patient selection
+        window.location.href = 'launch.html?reselect=true';
         return;
     }
 
