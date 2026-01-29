@@ -183,6 +183,89 @@
             width: 3rem;
             height: 3rem;
         }
+
+        /* Patient Data Styles */
+        .patient-section {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            border-left: 4px solid #667eea;
+        }
+
+        .patient-info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+
+        .patient-info-item {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .patient-info-label {
+            font-size: 12px;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 5px;
+        }
+
+        .patient-info-value {
+            font-size: 18px;
+            color: #333;
+            font-weight: 600;
+        }
+
+        .patient-list-item {
+            background: white;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .patient-list-item-title {
+            font-weight: 600;
+            color: #333;
+            font-size: 16px;
+        }
+
+        .patient-list-item-detail {
+            color: #666;
+            font-size: 14px;
+            margin-top: 5px;
+        }
+
+        .patient-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .patient-badge-active {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .patient-badge-inactive {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .patient-badge-info {
+            background: #cce5ff;
+            color: #004085;
+        }
     </style>
 </head>
 <body>
@@ -254,6 +337,11 @@
                 <li class="nav-item">
                     <button class="nav-link" data-bs-toggle="tab" data-bs-target="#settings-tab">
                         設定
+                    </button>
+                </li>
+                <li class="nav-item" id="patientDataTab" style="display: none;">
+                    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#patient-data-tab">
+                        👤 病患資料
                     </button>
                 </li>
             </ul>
@@ -444,6 +532,63 @@
                                 <button class="btn btn-secondary btn-custom ms-2" onclick="resetThresholds()">
                                     🔄 重置預設值
                                 </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Patient Data Tab (SMART mode only) -->
+                <div class="tab-pane fade" id="patient-data-tab">
+                    <div class="card">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h4 class="mb-0">👤 病患資料</h4>
+                            <div>
+                                <button class="btn btn-outline-primary btn-sm me-2" onclick="refreshPatientData()">
+                                    🔄 重新載入
+                                </button>
+                                <button class="btn btn-outline-secondary btn-sm" onclick="exportPatientData()">
+                                    💾 匯出 JSON
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Patient Basic Info -->
+                        <div class="patient-section mb-4">
+                            <h5 class="border-bottom pb-2">📋 基本資料</h5>
+                            <div id="patientBasicInfo" class="row g-3">
+                                <div class="col-12 text-center text-muted">載入中...</div>
+                            </div>
+                        </div>
+
+                        <!-- Conditions -->
+                        <div class="patient-section mb-4">
+                            <h5 class="border-bottom pb-2">🩺 診斷 (Conditions)</h5>
+                            <div id="patientConditions">
+                                <div class="text-center text-muted">載入中...</div>
+                            </div>
+                        </div>
+
+                        <!-- Medications -->
+                        <div class="patient-section mb-4">
+                            <h5 class="border-bottom pb-2">💊 用藥記錄 (Medications)</h5>
+                            <div id="patientMedications">
+                                <div class="text-center text-muted">載入中...</div>
+                            </div>
+                        </div>
+
+                        <!-- Diagnostic Reports -->
+                        <div class="patient-section mb-4">
+                            <h5 class="border-bottom pb-2">📄 檢查報告 (Diagnostic Reports)</h5>
+                            <div id="patientReports">
+                                <div class="text-center text-muted">載入中...</div>
+                            </div>
+                        </div>
+
+                        <!-- All Vital Signs -->
+                        <div class="patient-section">
+                            <h5 class="border-bottom pb-2">❤️ 所有生命徵象 (All Vital Signs)</h5>
+                            <div id="patientVitalSigns">
+                                <div class="text-center text-muted">載入中...</div>
                             </div>
                         </div>
                     </div>

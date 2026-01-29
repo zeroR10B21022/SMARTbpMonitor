@@ -108,6 +108,10 @@ function showSmartConnection(patient) {
             </button>
         </div>
     `;
+
+    // Show patient data tab and load data
+    showPatientDataTab();
+    loadPatientData();
 }
 
 // Load BP observations from SMART on FHIR
@@ -1147,5 +1151,348 @@ function updateLockUI() {
         lockBtn.className = 'btn btn-outline-warning';
         inputs.forEach(input => input.disabled = false);
         buttons.style.display = 'block';
+    }
+}
+
+// ==========================================
+// Patient Data Functions (SMART mode only)
+// ==========================================
+
+// Show patient data tab (only in SMART mode)
+function showPatientDataTab() {
+    const patientTab = document.getElementById('patientDataTab');
+    if (patientTab) {
+        patientTab.style.display = 'block';
+    }
+}
+
+// Hide patient data tab
+function hidePatientDataTab() {
+    const patientTab = document.getElementById('patientDataTab');
+    if (patientTab) {
+        patientTab.style.display = 'none';
+    }
+}
+
+// Load all patient data
+async function loadPatientData() {
+    if (!appState.smartClient) {
+        console.log('No SMART client available for patient data');
+        return;
+    }
+
+    // Show the patient data tab
+    showPatientDataTab();
+
+    // Load all sections
+    await Promise.all([
+        renderPatientBasicInfo(),
+        renderPatientConditions(),
+        renderPatientMedications(),
+        renderPatientReports(),
+        renderPatientVitalSigns()
+    ]);
+}
+
+// Refresh patient data
+async function refreshPatientData() {
+    if (!appState.smartClient) {
+        alert('SMART Client 未就緒');
+        return;
+    }
+
+    // Reset loading state
+    document.getElementById('patientBasicInfo').innerHTML = '<div class="col-12 text-center text-muted">載入中...</div>';
+    document.getElementById('patientConditions').innerHTML = '<div class="text-center text-muted">載入中...</div>';
+    document.getElementById('patientMedications').innerHTML = '<div class="text-center text-muted">載入中...</div>';
+    document.getElementById('patientReports').innerHTML = '<div class="text-center text-muted">載入中...</div>';
+    document.getElementById('patientVitalSigns').innerHTML = '<div class="text-center text-muted">載入中...</div>';
+
+    await loadPatientData();
+}
+
+// Export patient data as JSON
+async function exportPatientData() {
+    if (!appState.smartClient) {
+        alert('SMART Client 未就緒');
+        return;
+    }
+
+    try {
+        // Collect all data
+        const patient = await appState.smartClient.patient.read();
+        const conditions = await appState.smartClient.request(`/Condition?patient=${appState.smartClient.patient.id}`);
+        const medications = await appState.smartClient.request(`/MedicationRequest?patient=${appState.smartClient.patient.id}`);
+        const reports = await appState.smartClient.request(`/DiagnosticReport?patient=${appState.smartClient.patient.id}`);
+        const vitals = await appState.smartClient.request(`/Observation?patient=${appState.smartClient.patient.id}&category=vital-signs`);
+
+        const exportData = {
+            exportTime: new Date().toISOString(),
+            patient: patient,
+            conditions: conditions,
+            medications: medications,
+            diagnosticReports: reports,
+            vitalSigns: vitals
+        };
+
+        // Download JSON
+        const dataStr = JSON.stringify(exportData, null, 2);
+        const blob = new Blob([dataStr], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `patient_${appState.smartClient.patient.id}_${Date.now()}.json`;
+        a.click();
+
+        URL.revokeObjectURL(url);
+        alert('✅ 資料已匯出！');
+
+    } catch (error) {
+        console.error('Export failed:', error);
+        alert('匯出失敗：' + error.message);
+    }
+}
+
+// Render patient basic info
+async function renderPatientBasicInfo() {
+    const container = document.getElementById('patientBasicInfo');
+
+    try {
+        const patient = await appState.smartClient.patient.read();
+
+        const name = getPatientName(patient);
+        const gender = patient.gender === 'male' ? '男' : patient.gender === 'female' ? '女' : '未知';
+        const birthDate = patient.birthDate || '未知';
+        const identifier = patient.identifier && patient.identifier[0]
+            ? patient.identifier[0].value
+            : '未知';
+
+        // Calculate age
+        let age = '';
+        if (patient.birthDate) {
+            const today = new Date();
+            const birth = new Date(patient.birthDate);
+            age = Math.floor((today - birth) / (365.25 * 24 * 60 * 60 * 1000));
+        }
+
+        container.innerHTML = `
+            <div class="patient-info-grid">
+                <div class="patient-info-item">
+                    <div class="patient-info-label">姓名</div>
+                    <div class="patient-info-value">${name}</div>
+                </div>
+                <div class="patient-info-item">
+                    <div class="patient-info-label">性別</div>
+                    <div class="patient-info-value">${gender}</div>
+                </div>
+                <div class="patient-info-item">
+                    <div class="patient-info-label">生日</div>
+                    <div class="patient-info-value">${birthDate}${age ? ` (${age}歲)` : ''}</div>
+                </div>
+                <div class="patient-info-item">
+                    <div class="patient-info-label">身分證字號</div>
+                    <div class="patient-info-value">${identifier}</div>
+                </div>
+                <div class="patient-info-item">
+                    <div class="patient-info-label">Patient ID</div>
+                    <div class="patient-info-value">${patient.id}</div>
+                </div>
+            </div>
+        `;
+    } catch (error) {
+        container.innerHTML = `<div class="alert alert-danger">載入失敗: ${error.message}</div>`;
+    }
+}
+
+// Render patient conditions
+async function renderPatientConditions() {
+    const container = document.getElementById('patientConditions');
+
+    try {
+        const data = await appState.smartClient.request(`/Condition?patient=${appState.smartClient.patient.id}`);
+
+        if (!data.entry || data.entry.length === 0) {
+            container.innerHTML = '<p class="text-muted">找不到診斷資料</p>';
+            return;
+        }
+
+        let html = '';
+        data.entry.forEach(entry => {
+            const condition = entry.resource;
+            const code = condition.code?.text ||
+                        condition.code?.coding?.[0]?.display ||
+                        '未知診斷';
+
+            const status = condition.clinicalStatus?.coding?.[0]?.code || 'unknown';
+            const severity = condition.severity?.coding?.[0]?.display || '';
+            const onsetDate = condition.onsetDateTime || condition.recordedDate || '';
+
+            const statusBadge = status === 'active'
+                ? '<span class="patient-badge patient-badge-active">Active</span>'
+                : `<span class="patient-badge patient-badge-inactive">${status}</span>`;
+
+            const severityBadge = severity
+                ? `<span class="patient-badge patient-badge-info">${severity}</span>`
+                : '';
+
+            html += `
+                <div class="patient-list-item">
+                    <div>
+                        <div class="patient-list-item-title">${code}</div>
+                        ${onsetDate ? `<div class="patient-list-item-detail">發病日期: ${onsetDate.split('T')[0]}</div>` : ''}
+                        ${condition.note?.[0]?.text ? `<div class="patient-list-item-detail">${condition.note[0].text}</div>` : ''}
+                    </div>
+                    <div>
+                        ${statusBadge}
+                        ${severityBadge}
+                    </div>
+                </div>
+            `;
+        });
+
+        container.innerHTML = html;
+    } catch (error) {
+        container.innerHTML = `<div class="alert alert-warning">載入診斷資料失敗: ${error.message}</div>`;
+    }
+}
+
+// Render patient medications
+async function renderPatientMedications() {
+    const container = document.getElementById('patientMedications');
+
+    try {
+        // Try MedicationRequest first, then MedicationStatement
+        let data;
+        try {
+            data = await appState.smartClient.request(`/MedicationRequest?patient=${appState.smartClient.patient.id}`);
+        } catch {
+            data = await appState.smartClient.request(`/MedicationStatement?patient=${appState.smartClient.patient.id}`);
+        }
+
+        if (!data.entry || data.entry.length === 0) {
+            container.innerHTML = '<p class="text-muted">找不到用藥資料</p>';
+            return;
+        }
+
+        let html = '';
+        data.entry.forEach(entry => {
+            const med = entry.resource;
+            const name = med.medicationCodeableConcept?.text ||
+                        med.medicationCodeableConcept?.coding?.[0]?.display ||
+                        '未知藥物';
+            const status = med.status || 'unknown';
+            const dosage = med.dosageInstruction?.[0]?.text || med.dosage?.[0]?.text || '';
+            const authoredOn = med.authoredOn || '';
+
+            const statusBadge = status === 'active'
+                ? '<span class="patient-badge patient-badge-active">使用中</span>'
+                : `<span class="patient-badge">${status}</span>`;
+
+            html += `
+                <div class="patient-list-item">
+                    <div>
+                        <div class="patient-list-item-title">${name}</div>
+                        ${dosage ? `<div class="patient-list-item-detail">用法: ${dosage}</div>` : ''}
+                        ${authoredOn ? `<div class="patient-list-item-detail">開立日期: ${authoredOn.split('T')[0]}</div>` : ''}
+                    </div>
+                    ${statusBadge}
+                </div>
+            `;
+        });
+
+        container.innerHTML = html;
+    } catch (error) {
+        container.innerHTML = `<div class="alert alert-warning">載入用藥資料失敗: ${error.message}</div>`;
+    }
+}
+
+// Render patient diagnostic reports
+async function renderPatientReports() {
+    const container = document.getElementById('patientReports');
+
+    try {
+        const data = await appState.smartClient.request(`/DiagnosticReport?patient=${appState.smartClient.patient.id}`);
+
+        if (!data.entry || data.entry.length === 0) {
+            container.innerHTML = '<p class="text-muted">找不到檢查報告</p>';
+            return;
+        }
+
+        let html = '';
+        data.entry.forEach(entry => {
+            const report = entry.resource;
+            const name = report.code?.text || report.code?.coding?.[0]?.display || '未知報告';
+            const date = report.effectiveDateTime || report.issued || '';
+            const conclusion = report.conclusion || '';
+            const status = report.status || '';
+
+            html += `
+                <div class="patient-list-item" style="flex-direction: column; align-items: flex-start;">
+                    <div style="width: 100%; display: flex; justify-content: space-between; align-items: center;">
+                        <div class="patient-list-item-title">${name}</div>
+                        <div>
+                            ${status ? `<span class="patient-badge patient-badge-info">${status}</span>` : ''}
+                            ${date ? `<span class="patient-list-item-detail">${date.split('T')[0]}</span>` : ''}
+                        </div>
+                    </div>
+                    ${conclusion ? `<div class="patient-list-item-detail" style="margin-top: 10px; width: 100%;">結論: ${conclusion}</div>` : ''}
+                </div>
+            `;
+        });
+
+        container.innerHTML = html;
+    } catch (error) {
+        container.innerHTML = `<div class="alert alert-warning">載入檢查報告失敗: ${error.message}</div>`;
+    }
+}
+
+// Render all patient vital signs (not just BP)
+async function renderPatientVitalSigns() {
+    const container = document.getElementById('patientVitalSigns');
+
+    try {
+        const data = await appState.smartClient.request(`/Observation?patient=${appState.smartClient.patient.id}&category=vital-signs&_sort=-date&_count=50`);
+
+        if (!data.entry || data.entry.length === 0) {
+            container.innerHTML = '<p class="text-muted">找不到生命徵象資料</p>';
+            return;
+        }
+
+        let html = '';
+        data.entry.forEach(entry => {
+            const obs = entry.resource;
+            const name = obs.code?.text || obs.code?.coding?.[0]?.display || '未知項目';
+
+            let value = '';
+            if (obs.valueQuantity) {
+                value = `${obs.valueQuantity.value} ${obs.valueQuantity.unit || ''}`;
+            } else if (obs.component) {
+                value = obs.component.map(comp => {
+                    const compName = comp.code?.coding?.[0]?.display || comp.code?.text || '';
+                    const compVal = comp.valueQuantity
+                        ? `${comp.valueQuantity.value} ${comp.valueQuantity.unit || ''}`
+                        : '';
+                    return `${compName}: ${compVal}`;
+                }).join(', ');
+            }
+
+            const date = obs.effectiveDateTime || '';
+            const formattedDate = date ? new Date(date).toLocaleString('zh-TW') : '';
+
+            html += `
+                <div class="patient-list-item">
+                    <div>
+                        <div class="patient-list-item-title">${name}</div>
+                        <div class="patient-list-item-detail">${value}</div>
+                    </div>
+                    <div class="patient-list-item-detail">${formattedDate}</div>
+                </div>
+            `;
+        });
+
+        container.innerHTML = html;
+    } catch (error) {
+        container.innerHTML = `<div class="alert alert-warning">載入生命徵象失敗: ${error.message}</div>`;
     }
 }
