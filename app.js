@@ -403,6 +403,10 @@ function useDemoMode() {
         generateDemoData();
     }
 
+    // Show patient data tab and load demo patient data
+    showPatientDataTab();
+    loadDemoPatientData_Full();
+
     updateDashboard();
 }
 
@@ -1194,66 +1198,6 @@ async function loadPatientData() {
     ]);
 }
 
-// Refresh patient data
-async function refreshPatientData() {
-    if (!appState.smartClient) {
-        alert('SMART Client 未就緒');
-        return;
-    }
-
-    // Reset loading state
-    document.getElementById('patientBasicInfo').innerHTML = '<div class="col-12 text-center text-muted">載入中...</div>';
-    document.getElementById('patientConditions').innerHTML = '<div class="text-center text-muted">載入中...</div>';
-    document.getElementById('patientMedications').innerHTML = '<div class="text-center text-muted">載入中...</div>';
-    document.getElementById('patientReports').innerHTML = '<div class="text-center text-muted">載入中...</div>';
-    document.getElementById('patientVitalSigns').innerHTML = '<div class="text-center text-muted">載入中...</div>';
-
-    await loadPatientData();
-}
-
-// Export patient data as JSON
-async function exportPatientData() {
-    if (!appState.smartClient) {
-        alert('SMART Client 未就緒');
-        return;
-    }
-
-    try {
-        // Collect all data
-        const patient = await appState.smartClient.patient.read();
-        const conditions = await appState.smartClient.request(`/Condition?patient=${appState.smartClient.patient.id}`);
-        const medications = await appState.smartClient.request(`/MedicationRequest?patient=${appState.smartClient.patient.id}`);
-        const reports = await appState.smartClient.request(`/DiagnosticReport?patient=${appState.smartClient.patient.id}`);
-        const vitals = await appState.smartClient.request(`/Observation?patient=${appState.smartClient.patient.id}&category=vital-signs`);
-
-        const exportData = {
-            exportTime: new Date().toISOString(),
-            patient: patient,
-            conditions: conditions,
-            medications: medications,
-            diagnosticReports: reports,
-            vitalSigns: vitals
-        };
-
-        // Download JSON
-        const dataStr = JSON.stringify(exportData, null, 2);
-        const blob = new Blob([dataStr], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `patient_${appState.smartClient.patient.id}_${Date.now()}.json`;
-        a.click();
-
-        URL.revokeObjectURL(url);
-        alert('✅ 資料已匯出！');
-
-    } catch (error) {
-        console.error('Export failed:', error);
-        alert('匯出失敗：' + error.message);
-    }
-}
-
 // Render patient basic info
 async function renderPatientBasicInfo() {
     const container = document.getElementById('patientBasicInfo');
@@ -1495,4 +1439,279 @@ async function renderPatientVitalSigns() {
     } catch (error) {
         container.innerHTML = `<div class="alert alert-warning">載入生命徵象失敗: ${error.message}</div>`;
     }
+}
+
+// ==========================================
+// Demo Mode Patient Data Functions
+// ==========================================
+
+// Load demo patient data for Demo mode
+function loadDemoPatientData_Full() {
+    // Render demo basic info
+    renderDemoPatientBasicInfo();
+    renderDemoPatientConditions();
+    renderDemoPatientMedications();
+    renderDemoPatientReports();
+    renderDemoPatientVitalSigns();
+}
+
+// Render demo patient basic info
+function renderDemoPatientBasicInfo() {
+    const container = document.getElementById('patientBasicInfo');
+
+    container.innerHTML = `
+        <div class="patient-info-grid">
+            <div class="patient-info-item">
+                <div class="patient-info-label">姓名</div>
+                <div class="patient-info-value">王大明</div>
+            </div>
+            <div class="patient-info-item">
+                <div class="patient-info-label">性別</div>
+                <div class="patient-info-value">男</div>
+            </div>
+            <div class="patient-info-item">
+                <div class="patient-info-label">生日</div>
+                <div class="patient-info-value">1965-03-15 (60歲)</div>
+            </div>
+            <div class="patient-info-item">
+                <div class="patient-info-label">身分證字號</div>
+                <div class="patient-info-value">A123456789</div>
+            </div>
+            <div class="patient-info-item">
+                <div class="patient-info-label">Patient ID</div>
+                <div class="patient-info-value">demo-patient-001</div>
+            </div>
+        </div>
+    `;
+}
+
+// Render demo patient conditions
+function renderDemoPatientConditions() {
+    const container = document.getElementById('patientConditions');
+
+    const demoConditions = [
+        { name: '原發性高血壓 (Essential Hypertension)', status: 'active', date: '2020-05-10' },
+        { name: '第二型糖尿病 (Type 2 Diabetes)', status: 'active', date: '2018-08-22' },
+        { name: '高脂血症 (Hyperlipidemia)', status: 'active', date: '2019-03-15' }
+    ];
+
+    let html = '';
+    demoConditions.forEach(condition => {
+        const statusBadge = condition.status === 'active'
+            ? '<span class="patient-badge patient-badge-active">Active</span>'
+            : `<span class="patient-badge patient-badge-inactive">${condition.status}</span>`;
+
+        html += `
+            <div class="patient-list-item">
+                <div>
+                    <div class="patient-list-item-title">${condition.name}</div>
+                    <div class="patient-list-item-detail">發病日期: ${condition.date}</div>
+                </div>
+                <div>${statusBadge}</div>
+            </div>
+        `;
+    });
+
+    container.innerHTML = html;
+}
+
+// Render demo patient medications
+function renderDemoPatientMedications() {
+    const container = document.getElementById('patientMedications');
+
+    const demoMedications = [
+        { name: 'Amlodipine 5mg', dosage: '每日一次，早餐後服用', status: 'active' },
+        { name: 'Metformin 500mg', dosage: '每日兩次，飯後服用', status: 'active' },
+        { name: 'Atorvastatin 10mg', dosage: '每日一次，睡前服用', status: 'active' }
+    ];
+
+    let html = '';
+    demoMedications.forEach(med => {
+        const statusBadge = '<span class="patient-badge patient-badge-active">使用中</span>';
+
+        html += `
+            <div class="patient-list-item">
+                <div>
+                    <div class="patient-list-item-title">${med.name}</div>
+                    <div class="patient-list-item-detail">用法: ${med.dosage}</div>
+                </div>
+                ${statusBadge}
+            </div>
+        `;
+    });
+
+    container.innerHTML = html;
+}
+
+// Render demo patient reports
+function renderDemoPatientReports() {
+    const container = document.getElementById('patientReports');
+
+    const demoReports = [
+        { name: '血液常規檢查', date: '2024-01-15', conclusion: '血紅素略低，建議追蹤', status: 'final' },
+        { name: '生化檢查', date: '2024-01-15', conclusion: '肝腎功能正常，血糖偏高', status: 'final' },
+        { name: '心電圖', date: '2023-12-20', conclusion: '竇性心律，正常心電圖', status: 'final' }
+    ];
+
+    let html = '';
+    demoReports.forEach(report => {
+        html += `
+            <div class="patient-list-item" style="flex-direction: column; align-items: flex-start;">
+                <div style="width: 100%; display: flex; justify-content: space-between; align-items: center;">
+                    <div class="patient-list-item-title">${report.name}</div>
+                    <div>
+                        <span class="patient-badge patient-badge-info">${report.status}</span>
+                        <span class="patient-list-item-detail">${report.date}</span>
+                    </div>
+                </div>
+                <div class="patient-list-item-detail" style="margin-top: 10px; width: 100%;">結論: ${report.conclusion}</div>
+            </div>
+        `;
+    });
+
+    container.innerHTML = html;
+}
+
+// Render demo patient vital signs
+function renderDemoPatientVitalSigns() {
+    const container = document.getElementById('patientVitalSigns');
+
+    // Use actual BP readings from appState if available
+    let html = '';
+
+    // Add some additional vital signs
+    const additionalVitals = [
+        { name: '心率 (Heart Rate)', value: '72 bpm', date: new Date().toLocaleString('zh-TW') },
+        { name: '體溫 (Body Temperature)', value: '36.5 °C', date: new Date().toLocaleString('zh-TW') },
+        { name: '血氧飽和度 (SpO2)', value: '98 %', date: new Date().toLocaleString('zh-TW') },
+        { name: '呼吸頻率 (Respiratory Rate)', value: '16 /min', date: new Date().toLocaleString('zh-TW') }
+    ];
+
+    // Show recent BP readings first
+    const recentBP = appState.bpReadings.slice(0, 5);
+    recentBP.forEach(bp => {
+        const date = new Date(bp.dateTime).toLocaleString('zh-TW');
+        html += `
+            <div class="patient-list-item">
+                <div>
+                    <div class="patient-list-item-title">血壓 (Blood Pressure)</div>
+                    <div class="patient-list-item-detail">收縮壓: ${bp.systolic} mmHg, 舒張壓: ${bp.diastolic} mmHg</div>
+                </div>
+                <div class="patient-list-item-detail">${date}</div>
+            </div>
+        `;
+    });
+
+    // Add additional vitals
+    additionalVitals.forEach(vital => {
+        html += `
+            <div class="patient-list-item">
+                <div>
+                    <div class="patient-list-item-title">${vital.name}</div>
+                    <div class="patient-list-item-detail">${vital.value}</div>
+                </div>
+                <div class="patient-list-item-detail">${vital.date}</div>
+            </div>
+        `;
+    });
+
+    container.innerHTML = html || '<p class="text-muted">找不到生命徵象資料</p>';
+}
+
+// Update refreshPatientData to support Demo mode
+function refreshPatientData() {
+    // Reset loading state
+    document.getElementById('patientBasicInfo').innerHTML = '<div class="col-12 text-center text-muted">載入中...</div>';
+    document.getElementById('patientConditions').innerHTML = '<div class="text-center text-muted">載入中...</div>';
+    document.getElementById('patientMedications').innerHTML = '<div class="text-center text-muted">載入中...</div>';
+    document.getElementById('patientReports').innerHTML = '<div class="text-center text-muted">載入中...</div>';
+    document.getElementById('patientVitalSigns').innerHTML = '<div class="text-center text-muted">載入中...</div>';
+
+    if (appState.smartMode && appState.smartClient) {
+        loadPatientData();
+    } else if (appState.demoMode) {
+        setTimeout(() => loadDemoPatientData_Full(), 500); // Simulate loading delay
+    } else {
+        alert('無法載入病患資料');
+    }
+}
+
+// Update exportPatientData to support Demo mode
+function exportPatientData() {
+    if (appState.smartMode && appState.smartClient) {
+        exportPatientDataFromSMART();
+    } else if (appState.demoMode) {
+        exportDemoPatientData();
+    } else {
+        alert('無法匯出病患資料');
+    }
+}
+
+// Export from SMART (original function, renamed)
+async function exportPatientDataFromSMART() {
+    try {
+        const patient = await appState.smartClient.patient.read();
+        const conditions = await appState.smartClient.request(`/Condition?patient=${appState.smartClient.patient.id}`);
+        const medications = await appState.smartClient.request(`/MedicationRequest?patient=${appState.smartClient.patient.id}`);
+        const reports = await appState.smartClient.request(`/DiagnosticReport?patient=${appState.smartClient.patient.id}`);
+        const vitals = await appState.smartClient.request(`/Observation?patient=${appState.smartClient.patient.id}&category=vital-signs`);
+
+        const exportData = {
+            exportTime: new Date().toISOString(),
+            patient: patient,
+            conditions: conditions,
+            medications: medications,
+            diagnosticReports: reports,
+            vitalSigns: vitals
+        };
+
+        downloadJSON(exportData, `patient_${appState.smartClient.patient.id}_${Date.now()}.json`);
+        alert('資料已匯出！');
+
+    } catch (error) {
+        console.error('Export failed:', error);
+        alert('匯出失敗：' + error.message);
+    }
+}
+
+// Export demo patient data
+function exportDemoPatientData() {
+    const exportData = {
+        exportTime: new Date().toISOString(),
+        mode: 'demo',
+        patient: {
+            id: 'demo-patient-001',
+            name: '王大明',
+            gender: 'male',
+            birthDate: '1965-03-15'
+        },
+        conditions: [
+            { name: '原發性高血壓', status: 'active', date: '2020-05-10' },
+            { name: '第二型糖尿病', status: 'active', date: '2018-08-22' },
+            { name: '高脂血症', status: 'active', date: '2019-03-15' }
+        ],
+        medications: [
+            { name: 'Amlodipine 5mg', dosage: '每日一次，早餐後服用' },
+            { name: 'Metformin 500mg', dosage: '每日兩次，飯後服用' },
+            { name: 'Atorvastatin 10mg', dosage: '每日一次，睡前服用' }
+        ],
+        bloodPressureReadings: appState.bpReadings
+    };
+
+    downloadJSON(exportData, `demo_patient_${Date.now()}.json`);
+    alert('Demo 資料已匯出！');
+}
+
+// Helper function to download JSON
+function downloadJSON(data, filename) {
+    const dataStr = JSON.stringify(data, null, 2);
+    const blob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+
+    URL.revokeObjectURL(url);
 }
