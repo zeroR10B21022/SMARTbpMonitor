@@ -46,8 +46,9 @@
             redirectUri: "index.html"
         };
 
-        // If no ISS provided in URL (direct access or from app), use MOHW sandbox
-        if (!issFromUrl && forceReselect) {
+        // Always use MOHW sandbox as default if no ISS provided in URL
+        // This ensures proper redirect to MOHW patient selection
+        if (!issFromUrl) {
             authorizeOptions.iss = MOHW_SANDBOX_ISS;
         }
 
