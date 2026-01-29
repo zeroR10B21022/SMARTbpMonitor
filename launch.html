@@ -17,12 +17,16 @@
         // SMART on FHIR EHR Launch
         // This page initiates the OAuth2 authorization flow
 
+        // Taiwan MOHW Sandbox FHIR Server URL
+        const MOHW_SANDBOX_ISS = "https://thas.mohw.gov.tw/v/r4/sim/WzIsIiIsIiIsIkFVVE8iLDAsMCwwLCIiLCIiLCIiLCIiLCIiLCIiLCIiLDAsMSwiIl0/fhir";
+
         // Clear any existing session data to force fresh login
         sessionStorage.clear();
 
-        // Check if we came from logout (force re-select patient)
+        // Check URL parameters
         const urlParams = new URLSearchParams(window.location.search);
         const forceReselect = urlParams.get('reselect') === 'true';
+        const issFromUrl = urlParams.get('iss');
 
         // Build authorize options
         const authorizeOptions = {
@@ -42,9 +46,9 @@
             redirectUri: "index.html"
         };
 
-        // If force reselect, add prompt parameter to force re-authentication
-        if (forceReselect) {
-            authorizeOptions.completeInTarget = true;
+        // If no ISS provided in URL (direct access or from app), use MOHW sandbox
+        if (!issFromUrl && forceReselect) {
+            authorizeOptions.iss = MOHW_SANDBOX_ISS;
         }
 
         FHIR.oauth2.authorize(authorizeOptions).catch(function(error) {
@@ -53,7 +57,8 @@
             document.getElementById("error").innerHTML =
                 "<strong>Authorization Error:</strong><br>" +
                 error.message +
-                "<br><br><a href='index.html'>Continue in Demo Mode</a>";
+                "<br><br><a href='index.html'>Continue in Demo Mode</a>" +
+                "<br><br><a href='" + MOHW_SANDBOX_ISS.replace('/fhir', '') + "'>Go to MOHW Sandbox</a>";
         });
     </script>
 </body>
