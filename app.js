@@ -945,12 +945,25 @@ function importSmartwatch() {
 // ==========================================
 
 function logout() {
-    // Clear SMART session
+    // If in SMART mode, redirect back to launch.html to re-authorize
     if (appState.smartMode) {
+        // Clear SMART session
         sessionStorage.removeItem('SMART_KEY');
+
+        // Also clear any other FHIR client session data
+        Object.keys(sessionStorage).forEach(key => {
+            if (key.startsWith('SMART') || key.includes('fhir')) {
+                sessionStorage.removeItem(key);
+            }
+        });
+
+        // Redirect to launch.html to restart OAuth flow
+        // This will redirect to the SMART sandbox login/patient selection
+        window.location.href = 'launch.html';
+        return;
     }
 
-    // Reset app state
+    // For non-SMART modes (Demo/FHIR), just reset to connection page
     appState.connected = false;
     appState.fhirMode = false;
     appState.demoMode = false;
@@ -1016,15 +1029,31 @@ function saveThresholdLock() {
 
 // Toggle threshold lock
 function toggleThresholdLock() {
+    console.log('toggleThresholdLock called, locked:', appState.thresholdLocked);
+
+    const lockSection = document.getElementById('lockPasswordSection');
+    const unlockSection = document.getElementById('unlockPasswordSection');
+
+    console.log('lockSection:', lockSection);
+    console.log('unlockSection:', unlockSection);
+
     if (appState.thresholdLocked) {
         // Show unlock password input
-        document.getElementById('unlockPasswordSection').style.display = 'block';
-        document.getElementById('unlockPassword').value = '';
-        document.getElementById('unlockError').style.display = 'none';
+        if (unlockSection) {
+            unlockSection.style.display = 'block';
+            document.getElementById('unlockPassword').value = '';
+            document.getElementById('unlockError').style.display = 'none';
+        } else {
+            console.error('unlockPasswordSection not found!');
+        }
     } else {
         // Show lock password input
-        document.getElementById('lockPasswordSection').style.display = 'block';
-        document.getElementById('lockPassword').value = '';
+        if (lockSection) {
+            lockSection.style.display = 'block';
+            document.getElementById('lockPassword').value = '';
+        } else {
+            console.error('lockPasswordSection not found!');
+        }
     }
 }
 
