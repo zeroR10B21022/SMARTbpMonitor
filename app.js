@@ -272,9 +272,14 @@ async function connectToFHIR() {
                     <strong>✅ 已連接到 FHIR 伺服器</strong>
                     <p class="mb-0 mt-2">Taiwan HAPI FHIR Server - ${data.fhirVersion || 'R4'}</p>
                 </div>
-                <button class="btn btn-outline-danger btn-sm" onclick="logout()">
-                    🚪 登出
-                </button>
+                <div>
+                    <button class="btn btn-outline-primary btn-sm me-2" onclick="goToEHRLaunch()">
+                        🏥 EHR 啟動
+                    </button>
+                    <button class="btn btn-outline-danger btn-sm" onclick="logout()">
+                        🚪 登出
+                    </button>
+                </div>
             </div>
         `;
 
@@ -375,9 +380,14 @@ function useDemoMode() {
                 <strong>ℹ️ Demo 模式</strong>
                 <p class="mb-0 mt-2">資料僅儲存在本地瀏覽器中</p>
             </div>
-            <button class="btn btn-outline-danger btn-sm" onclick="logout()">
-                🚪 登出
-            </button>
+            <div>
+                <button class="btn btn-outline-primary btn-sm me-2" onclick="goToEHRLaunch()">
+                    🏥 EHR 啟動
+                </button>
+                <button class="btn btn-outline-danger btn-sm" onclick="logout()">
+                    🚪 登出
+                </button>
+            </div>
         </div>
     `;
 
@@ -938,6 +948,26 @@ function importSmartwatch() {
     };
 
     reader.readAsText(file);
+}
+
+// ==========================================
+// EHR Launch Function
+// ==========================================
+
+function goToEHRLaunch() {
+    // Clear all session data
+    sessionStorage.clear();
+
+    // Clear FHIR-related localStorage
+    Object.keys(localStorage).forEach(key => {
+        if (key.startsWith('SMART') || key.includes('fhir') || key.includes('FHIR')) {
+            localStorage.removeItem(key);
+        }
+    });
+
+    // Redirect to launch.html to start SMART on FHIR OAuth flow
+    // This will redirect to the EHR's authorization/patient selection page
+    window.location.href = 'launch.html?reselect=true';
 }
 
 // ==========================================
