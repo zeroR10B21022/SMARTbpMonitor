@@ -195,8 +195,15 @@
 
         <!-- FHIR Connection Status -->
         <div id="fhirStatus" class="card fhir-disconnected">
-            <strong>⚠️ 未連接 FHIR 伺服器</strong>
-            <p class="mb-0 mt-2">點擊下方按鈕連接到 Taiwan HAPI FHIR 測試伺服器</p>
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <strong>⚠️ 未連接 FHIR 伺服器</strong>
+                    <p class="mb-0 mt-2">點擊下方按鈕連接到 Taiwan HAPI FHIR 測試伺服器</p>
+                </div>
+                <button id="logoutBtn" class="btn btn-outline-danger btn-sm" onclick="logout()" style="display: none;">
+                    🚪 登出
+                </button>
+            </div>
         </div>
 
         <!-- Connection Buttons -->
@@ -365,19 +372,53 @@
                 <!-- Settings Tab -->
                 <div class="tab-pane fade" id="settings-tab">
                     <div class="card">
-                        <h4>⚙️ 閾值設定</h4>
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h4 class="mb-0">⚙️ 閾值設定</h4>
+                            <button id="lockToggleBtn" class="btn btn-outline-warning" onclick="toggleThresholdLock()">
+                                🔓 未鎖定
+                            </button>
+                        </div>
+
+                        <!-- Lock Password Modal -->
+                        <div id="lockPasswordSection" class="alert alert-warning" style="display: none;">
+                            <strong>🔐 設定鎖定密碼</strong>
+                            <div class="row g-2 mt-2">
+                                <div class="col-md-6">
+                                    <input type="password" class="form-control" id="lockPassword" placeholder="輸入密碼">
+                                </div>
+                                <div class="col-md-6">
+                                    <button class="btn btn-warning" onclick="confirmLock()">確認鎖定</button>
+                                    <button class="btn btn-secondary ms-2" onclick="cancelLock()">取消</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Unlock Password Modal -->
+                        <div id="unlockPasswordSection" class="alert alert-info" style="display: none;">
+                            <strong>🔑 輸入密碼解鎖</strong>
+                            <div class="row g-2 mt-2">
+                                <div class="col-md-6">
+                                    <input type="password" class="form-control" id="unlockPassword" placeholder="輸入密碼">
+                                </div>
+                                <div class="col-md-6">
+                                    <button class="btn btn-info" onclick="confirmUnlock()">解鎖</button>
+                                    <button class="btn btn-secondary ms-2" onclick="cancelUnlock()">取消</button>
+                                </div>
+                            </div>
+                            <div id="unlockError" class="text-danger mt-2" style="display: none;">密碼錯誤</div>
+                        </div>
 
                         <div class="threshold-settings">
                             <h5>🔴 紅燈閾值（危險）</h5>
                             <div class="row g-3 mb-4">
                                 <div class="col-md-6">
                                     <label class="form-label">收縮壓 ≥</label>
-                                    <input type="number" class="form-control" id="redSystolic" value="160">
+                                    <input type="number" class="form-control threshold-input" id="redSystolic" value="160">
                                     <small class="text-muted">mmHg</small>
                                 </div>
                                 <div class="col-md-6">
                                     <label class="form-label">舒張壓 ≥</label>
-                                    <input type="number" class="form-control" id="redDiastolic" value="100">
+                                    <input type="number" class="form-control threshold-input" id="redDiastolic" value="100">
                                     <small class="text-muted">mmHg</small>
                                 </div>
                             </div>
@@ -386,22 +427,24 @@
                             <div class="row g-3 mb-4">
                                 <div class="col-md-6">
                                     <label class="form-label">收縮壓 ≥</label>
-                                    <input type="number" class="form-control" id="yellowSystolic" value="140">
+                                    <input type="number" class="form-control threshold-input" id="yellowSystolic" value="140">
                                     <small class="text-muted">mmHg</small>
                                 </div>
                                 <div class="col-md-6">
                                     <label class="form-label">舒張壓 ≥</label>
-                                    <input type="number" class="form-control" id="yellowDiastolic" value="90">
+                                    <input type="number" class="form-control threshold-input" id="yellowDiastolic" value="90">
                                     <small class="text-muted">mmHg</small>
                                 </div>
                             </div>
 
-                            <button class="btn btn-success btn-custom" onclick="saveThresholds()">
-                                💾 儲存設定
-                            </button>
-                            <button class="btn btn-secondary btn-custom ms-2" onclick="resetThresholds()">
-                                🔄 重置預設值
-                            </button>
+                            <div id="thresholdButtons">
+                                <button class="btn btn-success btn-custom" onclick="saveThresholds()">
+                                    💾 儲存設定
+                                </button>
+                                <button class="btn btn-secondary btn-custom ms-2" onclick="resetThresholds()">
+                                    🔄 重置預設值
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>

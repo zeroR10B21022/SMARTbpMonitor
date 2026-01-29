@@ -17,12 +17,15 @@ let appState = {
         red: { systolic: 160, diastolic: 100 },
         yellow: { systolic: 140, diastolic: 90 }
     },
+    thresholdLocked: false,
+    thresholdPassword: null,
     chart: null
 };
 
 // Initialize app on load
 document.addEventListener('DOMContentLoaded', function() {
     loadThresholds();
+    loadThresholdLock();
     loadBPReadings();
     setDefaultDateTime();
 
@@ -93,10 +96,17 @@ function showSmartConnection(patient) {
     const statusDiv = document.getElementById('fhirStatus');
     statusDiv.className = 'card fhir-connected';
     statusDiv.innerHTML = `
-        <strong>SMART on FHIR Connected</strong>
-        <p class="mb-0 mt-2">Patient: ${appState.patientName}</p>
-        <p class="mb-0">ID: ${patient.id}</p>
-        ${patient.birthDate ? `<p class="mb-0">DOB: ${patient.birthDate}</p>` : ''}
+        <div class="d-flex justify-content-between align-items-start">
+            <div>
+                <strong>✅ SMART on FHIR Connected</strong>
+                <p class="mb-0 mt-2">Patient: ${appState.patientName}</p>
+                <p class="mb-0">ID: ${patient.id}</p>
+                ${patient.birthDate ? `<p class="mb-0">DOB: ${patient.birthDate}</p>` : ''}
+            </div>
+            <button class="btn btn-outline-danger btn-sm" onclick="logout()">
+                🚪 登出
+            </button>
+        </div>
     `;
 }
 
@@ -257,8 +267,15 @@ async function connectToFHIR() {
 
         statusDiv.className = 'card fhir-connected';
         statusDiv.innerHTML = `
-            <strong>✅ 已連接到 FHIR 伺服器</strong>
-            <p class="mb-0 mt-2">Taiwan HAPI FHIR Server - ${data.fhirVersion || 'R4'}</p>
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <strong>✅ 已連接到 FHIR 伺服器</strong>
+                    <p class="mb-0 mt-2">Taiwan HAPI FHIR Server - ${data.fhirVersion || 'R4'}</p>
+                </div>
+                <button class="btn btn-outline-danger btn-sm" onclick="logout()">
+                    🚪 登出
+                </button>
+            </div>
         `;
 
         connectionCard.style.display = 'none';
@@ -353,8 +370,15 @@ function useDemoMode() {
 
     statusDiv.className = 'card fhir-connected';
     statusDiv.innerHTML = `
-        <strong>ℹ️ Demo 模式</strong>
-        <p class="mb-0 mt-2">資料僅儲存在本地瀏覽器中</p>
+        <div class="d-flex justify-content-between align-items-start">
+            <div>
+                <strong>ℹ️ Demo 模式</strong>
+                <p class="mb-0 mt-2">資料僅儲存在本地瀏覽器中</p>
+            </div>
+            <button class="btn btn-outline-danger btn-sm" onclick="logout()">
+                🚪 登出
+            </button>
+        </div>
     `;
 
     connectionCard.style.display = 'none';
@@ -914,4 +938,155 @@ function importSmartwatch() {
     };
 
     reader.readAsText(file);
+}
+
+// ==========================================
+// Logout Function
+// ==========================================
+
+function logout() {
+    // Clear SMART session
+    if (appState.smartMode) {
+        sessionStorage.removeItem('SMART_KEY');
+    }
+
+    // Reset app state
+    appState.connected = false;
+    appState.fhirMode = false;
+    appState.demoMode = false;
+    appState.smartMode = false;
+    appState.smartClient = null;
+    appState.patientId = null;
+    appState.patientName = null;
+
+    // Reset UI
+    document.getElementById('fhirStatus').className = 'card fhir-disconnected';
+    document.getElementById('fhirStatus').innerHTML = `
+        <div class="d-flex justify-content-between align-items-start">
+            <div>
+                <strong>⚠️ 未連接 FHIR 伺服器</strong>
+                <p class="mb-0 mt-2">點擊下方按鈕連接到 Taiwan HAPI FHIR 測試伺服器</p>
+            </div>
+            <button id="logoutBtn" class="btn btn-outline-danger btn-sm" onclick="logout()" style="display: none;">
+                🚪 登出
+            </button>
+        </div>
+    `;
+
+    document.getElementById('connectionCard').style.display = 'block';
+    document.getElementById('mainContent').style.display = 'none';
+
+    // Destroy chart if exists
+    if (appState.chart) {
+        appState.chart.destroy();
+        appState.chart = null;
+    }
+}
+
+// Show logout button when connected
+function showLogoutButton() {
+    const logoutBtn = document.getElementById('logoutBtn');
+    if (logoutBtn) {
+        logoutBtn.style.display = 'block';
+    }
+}
+
+// ==========================================
+// Threshold Lock Functions
+// ==========================================
+
+// Load threshold lock state from localStorage
+function loadThresholdLock() {
+    const lockData = localStorage.getItem('bp_threshold_lock');
+    if (lockData) {
+        const data = JSON.parse(lockData);
+        appState.thresholdLocked = data.locked;
+        appState.thresholdPassword = data.password;
+        updateLockUI();
+    }
+}
+
+// Save threshold lock state to localStorage
+function saveThresholdLock() {
+    localStorage.setItem('bp_threshold_lock', JSON.stringify({
+        locked: appState.thresholdLocked,
+        password: appState.thresholdPassword
+    }));
+}
+
+// Toggle threshold lock
+function toggleThresholdLock() {
+    if (appState.thresholdLocked) {
+        // Show unlock password input
+        document.getElementById('unlockPasswordSection').style.display = 'block';
+        document.getElementById('unlockPassword').value = '';
+        document.getElementById('unlockError').style.display = 'none';
+    } else {
+        // Show lock password input
+        document.getElementById('lockPasswordSection').style.display = 'block';
+        document.getElementById('lockPassword').value = '';
+    }
+}
+
+// Confirm lock with password
+function confirmLock() {
+    const password = document.getElementById('lockPassword').value;
+    if (!password) {
+        alert('請輸入密碼');
+        return;
+    }
+
+    appState.thresholdLocked = true;
+    appState.thresholdPassword = password;
+    saveThresholdLock();
+    updateLockUI();
+
+    document.getElementById('lockPasswordSection').style.display = 'none';
+    alert('✅ 閾值設定已鎖定');
+}
+
+// Cancel lock
+function cancelLock() {
+    document.getElementById('lockPasswordSection').style.display = 'none';
+}
+
+// Confirm unlock with password
+function confirmUnlock() {
+    const password = document.getElementById('unlockPassword').value;
+
+    if (password === appState.thresholdPassword) {
+        appState.thresholdLocked = false;
+        appState.thresholdPassword = null;
+        saveThresholdLock();
+        updateLockUI();
+
+        document.getElementById('unlockPasswordSection').style.display = 'none';
+        alert('✅ 閾值設定已解鎖');
+    } else {
+        document.getElementById('unlockError').style.display = 'block';
+    }
+}
+
+// Cancel unlock
+function cancelUnlock() {
+    document.getElementById('unlockPasswordSection').style.display = 'none';
+}
+
+// Update lock UI state
+function updateLockUI() {
+    const lockBtn = document.getElementById('lockToggleBtn');
+    const inputs = document.querySelectorAll('.threshold-input');
+    const buttons = document.getElementById('thresholdButtons');
+
+    if (appState.thresholdLocked) {
+        lockBtn.innerHTML = '🔒 已鎖定';
+        lockBtn.className = 'btn btn-danger';
+        inputs.forEach(input => input.disabled = true);
+        buttons.style.display = 'none';
+    } else {
+        lockBtn.innerHTML = '🔓 未鎖定';
+        lockBtn.className = 'btn btn-outline-warning';
+        inputs.forEach(input => input.disabled = false);
+        buttons.style.display = 'block';
+    }
 }
