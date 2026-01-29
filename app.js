@@ -1,13 +1,17 @@
 // Blood Pressure Traffic Light System
 // Standalone HTML/JavaScript Application
+// With SMART on FHIR EHR Integration
 
 // Global state
 let appState = {
     connected: false,
     fhirMode: false,
     demoMode: false,
+    smartMode: false,
+    smartClient: null,
     fhirBaseUrl: 'https://twcore.hapi.fhir.tw/fhir',
     patientId: null,
+    patientName: null,
     bpReadings: [],
     thresholds: {
         red: { systolic: 160, diastolic: 100 },
@@ -22,10 +26,198 @@ document.addEventListener('DOMContentLoaded', function() {
     loadBPReadings();
     setDefaultDateTime();
 
-    if (appState.bpReadings.length > 0) {
-        updateDashboard();
-    }
+    // Check if returning from SMART on FHIR OAuth
+    checkSmartLaunch();
 });
+
+// Check for SMART on FHIR launch context
+async function checkSmartLaunch() {
+    // Check if FHIR client library is loaded and we have OAuth state
+    if (typeof FHIR !== 'undefined' && sessionStorage.getItem('SMART_KEY')) {
+        try {
+            const client = await FHIR.oauth2.ready();
+
+            // Successfully authenticated via SMART on FHIR
+            appState.smartClient = client;
+            appState.smartMode = true;
+            appState.connected = true;
+
+            // Get patient info
+            const patient = await client.patient.read();
+            appState.patientId = patient.id;
+            appState.patientName = getPatientName(patient);
+
+            // Update UI to show SMART connection
+            showSmartConnection(patient);
+
+            // Load BP observations from EHR
+            await loadBPFromSMART(client);
+
+            // Show main content
+            document.getElementById('connectionCard').style.display = 'none';
+            document.getElementById('mainContent').style.display = 'block';
+
+            updateDashboard();
+
+        } catch (error) {
+            console.log('Not a SMART launch or error:', error.message);
+            // Not from SMART launch, continue normal flow
+            if (appState.bpReadings.length > 0) {
+                updateDashboard();
+            }
+        }
+    } else {
+        // Normal page load (not from SMART launch)
+        if (appState.bpReadings.length > 0) {
+            updateDashboard();
+        }
+    }
+}
+
+// Extract patient name from FHIR Patient resource
+function getPatientName(patient) {
+    if (patient.name && patient.name.length > 0) {
+        const name = patient.name[0];
+        if (name.text) return name.text;
+
+        let parts = [];
+        if (name.given) parts = parts.concat(name.given);
+        if (name.family) parts.push(name.family);
+        return parts.join(' ');
+    }
+    return 'Unknown Patient';
+}
+
+// Show SMART connection status
+function showSmartConnection(patient) {
+    const statusDiv = document.getElementById('fhirStatus');
+    statusDiv.className = 'card fhir-connected';
+    statusDiv.innerHTML = `
+        <strong>SMART on FHIR Connected</strong>
+        <p class="mb-0 mt-2">Patient: ${appState.patientName}</p>
+        <p class="mb-0">ID: ${patient.id}</p>
+        ${patient.birthDate ? `<p class="mb-0">DOB: ${patient.birthDate}</p>` : ''}
+    `;
+}
+
+// Load BP observations from SMART on FHIR
+async function loadBPFromSMART(client) {
+    try {
+        // Search for blood pressure observations
+        // LOINC code 85354-9 = Blood pressure panel
+        const response = await client.request(
+            `/Observation?patient=${client.patient.id}&code=85354-9&_sort=-date&_count=100`,
+            { flat: true }
+        );
+
+        if (response && response.length > 0) {
+            const smartReadings = response.map(obs => {
+                // Extract systolic and diastolic from components
+                let systolic = null;
+                let diastolic = null;
+
+                if (obs.component) {
+                    obs.component.forEach(comp => {
+                        const code = comp.code?.coding?.[0]?.code;
+                        if (code === '8480-6') { // Systolic
+                            systolic = comp.valueQuantity?.value;
+                        } else if (code === '8462-4') { // Diastolic
+                            diastolic = comp.valueQuantity?.value;
+                        }
+                    });
+                }
+
+                return {
+                    systolic,
+                    diastolic,
+                    dateTime: obs.effectiveDateTime || obs.effectivePeriod?.start,
+                    source: 'smart-ehr'
+                };
+            }).filter(r => r.systolic && r.diastolic);
+
+            // Merge with existing readings (SMART readings take priority)
+            const existingNonSmart = appState.bpReadings.filter(r => r.source !== 'smart-ehr');
+            appState.bpReadings = [...smartReadings, ...existingNonSmart];
+
+            // Sort by date (newest first)
+            appState.bpReadings.sort((a, b) => new Date(b.dateTime) - new Date(a.dateTime));
+
+            saveBPReadings();
+            console.log(`Loaded ${smartReadings.length} BP readings from EHR`);
+        }
+    } catch (error) {
+        console.warn('Could not load BP observations from SMART:', error);
+    }
+}
+
+// Save BP to SMART on FHIR server
+async function saveBPToSMART(reading) {
+    if (!appState.smartClient) return false;
+
+    const observation = {
+        resourceType: 'Observation',
+        status: 'final',
+        category: [{
+            coding: [{
+                system: 'http://terminology.hl7.org/CodeSystem/observation-category',
+                code: 'vital-signs',
+                display: 'Vital Signs'
+            }]
+        }],
+        code: {
+            coding: [{
+                system: 'http://loinc.org',
+                code: '85354-9',
+                display: 'Blood pressure panel with all children optional'
+            }],
+            text: 'Blood Pressure'
+        },
+        subject: {
+            reference: `Patient/${appState.smartClient.patient.id}`
+        },
+        effectiveDateTime: reading.dateTime,
+        component: [
+            {
+                code: {
+                    coding: [{
+                        system: 'http://loinc.org',
+                        code: '8480-6',
+                        display: 'Systolic blood pressure'
+                    }]
+                },
+                valueQuantity: {
+                    value: reading.systolic,
+                    unit: 'mmHg',
+                    system: 'http://unitsofmeasure.org',
+                    code: 'mm[Hg]'
+                }
+            },
+            {
+                code: {
+                    coding: [{
+                        system: 'http://loinc.org',
+                        code: '8462-4',
+                        display: 'Diastolic blood pressure'
+                    }]
+                },
+                valueQuantity: {
+                    value: reading.diastolic,
+                    unit: 'mmHg',
+                    system: 'http://unitsofmeasure.org',
+                    code: 'mm[Hg]'
+                }
+            }
+        ]
+    };
+
+    try {
+        await appState.smartClient.create(observation);
+        return true;
+    } catch (error) {
+        console.error('Failed to save to SMART server:', error);
+        return false;
+    }
+}
 
 // Set default datetime to now
 function setDefaultDateTime() {
@@ -265,11 +457,20 @@ async function submitBP() {
         systolic,
         diastolic,
         dateTime: new Date(dateTime).toISOString(),
-        source: appState.fhirMode ? 'fhir' : 'local'
+        source: appState.smartMode ? 'smart-ehr' : (appState.fhirMode ? 'fhir' : 'local')
     };
 
+    // If SMART mode, try to save to EHR server
+    if (appState.smartMode && appState.smartClient) {
+        const saved = await saveBPToSMART(reading);
+        if (saved) {
+            resultDiv.innerHTML = '<div class="alert alert-success">✅ 已儲存至 EHR 系統</div>';
+        } else {
+            resultDiv.innerHTML = '<div class="alert alert-warning">⚠️ EHR 儲存失敗，已儲存至本地</div>';
+        }
+    }
     // If FHIR mode, try to save to server
-    if (appState.fhirMode && appState.patientId) {
+    else if (appState.fhirMode && appState.patientId) {
         const saved = await saveBPToFHIR(reading);
         if (saved) {
             resultDiv.innerHTML = '<div class="alert alert-success">✅ 已儲存至 FHIR 伺服器</div>';

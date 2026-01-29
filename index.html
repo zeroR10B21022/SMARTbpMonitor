@@ -11,6 +11,9 @@
     <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 
+    <!-- SMART on FHIR Client -->
+    <script src="https://cdn.jsdelivr.net/npm/fhirclient/build/fhir-client.js"></script>
+
     <style>
         :root {
             --red-light: #dc3545;
@@ -206,6 +209,19 @@
                 <button class="btn btn-secondary btn-custom" onclick="useDemoMode()">
                     使用 Demo 模式（測試資料）
                 </button>
+            </div>
+
+            <hr class="my-4">
+
+            <div class="alert alert-info mb-0">
+                <strong>🏥 SMART on FHIR EHR 啟動</strong>
+                <p class="mb-2 mt-2">
+                    若從 EHR 系統啟動此應用，請使用 <code>launch.html</code> 作為啟動 URL。
+                </p>
+                <p class="mb-0">
+                    <strong>Sandbox 測試：</strong>
+                    <a href="https://launch.smarthealthit.org/" target="_blank">SMART Health IT Launcher</a>
+                </p>
             </div>
         </div>
 

@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Launch SMART BP Monitor</title>
+    <script src="https://cdn.jsdelivr.net/npm/fhirclient/build/fhir-client.js"></script>
+</head>
+<body>
+    <div style="text-align: center; padding: 50px; font-family: Arial, sans-serif;">
+        <h2>SMART BP Monitor</h2>
+        <p>Connecting to EHR...</p>
+        <div id="error" style="color: red; display: none;"></div>
+    </div>
+
+    <script>
+        // SMART on FHIR EHR Launch
+        // This page initiates the OAuth2 authorization flow
+
+        FHIR.oauth2.authorize({
+            // Client ID - for sandbox testing, use a descriptive name
+            // For production, you'll need to register with the EHR vendor
+            clientId: "smart_bp_monitor",
+
+            // Requested scopes
+            // - launch: Support EHR launch context
+            // - openid: OpenID Connect for user identity
+            // - fhirUser: Get current user info
+            // - patient/*.read: Read all patient resources
+            // - patient/Observation.write: Write observations (for BP data)
+            scope: "launch openid fhirUser patient/*.read patient/Observation.write",
+
+            // Redirect to index.html after authorization
+            redirectUri: "index.html"
+
+        }).catch(function(error) {
+            // Display error if authorization fails
+            document.getElementById("error").style.display = "block";
+            document.getElementById("error").innerHTML =
+                "<strong>Authorization Error:</strong><br>" +
+                error.message +
+                "<br><br><a href='index.html'>Continue in Demo Mode</a>";
+        });
+    </script>
+</body>
+</html>
