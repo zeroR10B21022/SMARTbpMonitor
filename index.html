@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🚦 血壓紅黃綠燈</title>
+
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+    <style>
+        :root {
+            --red-light: #dc3545;
+            --yellow-light: #ffc107;
+            --green-light: #28a745;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px 0;
+        }
+
+        .main-container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+            text-align: center;
+        }
+
+        .header h1 {
+            color: #667eea;
+            font-weight: bold;
+            margin: 0;
+        }
+
+        .header p {
+            color: #666;
+            margin: 10px 0 0 0;
+        }
+
+        .card {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+            border: none;
+        }
+
+        .traffic-light-display {
+            text-align: center;
+            padding: 40px;
+        }
+
+        .traffic-light-icon {
+            font-size: 120px;
+            line-height: 1;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.8; transform: scale(1.05); }
+        }
+
+        .traffic-light-label {
+            font-size: 32px;
+            font-weight: bold;
+            margin: 15px 0 10px 0;
+        }
+
+        .traffic-light-desc {
+            font-size: 18px;
+            color: #666;
+        }
+
+        .light-red { color: var(--red-light); }
+        .light-yellow { color: var(--yellow-light); }
+        .light-green { color: var(--green-light); }
+
+        .bp-input-group {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+
+        .bp-input {
+            font-size: 24px;
+            text-align: center;
+            padding: 15px;
+            border: 2px solid #dee2e6;
+            border-radius: 10px;
+        }
+
+        .bp-input:focus {
+            border-color: #667eea;
+            box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
+        }
+
+        .btn-custom {
+            padding: 12px 30px;
+            font-size: 18px;
+            border-radius: 10px;
+            font-weight: 600;
+        }
+
+        .fhir-status {
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+
+        .fhir-connected {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+
+        .fhir-disconnected {
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+
+        .distribution-stats {
+            display: flex;
+            justify-content: space-around;
+            text-align: center;
+            margin: 30px 0;
+        }
+
+        .stat-box {
+            flex: 1;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 0 10px;
+        }
+
+        .stat-box.red { background: #ffebee; }
+        .stat-box.yellow { background: #fff9e6; }
+        .stat-box.green { background: #e8f5e9; }
+
+        .stat-number {
+            font-size: 36px;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+
+        .history-table {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .threshold-settings {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+        }
+
+        .spinner-border-lg {
+            width: 3rem;
+            height: 3rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="main-container">
+        <!-- Header -->
+        <div class="header">
+            <h1>🚦 血壓紅黃綠燈</h1>
+            <p>智能血壓監測與管理系統</p>
+        </div>
+
+        <!-- FHIR Connection Status -->
+        <div id="fhirStatus" class="card fhir-disconnected">
+            <strong>⚠️ 未連接 FHIR 伺服器</strong>
+            <p class="mb-0 mt-2">點擊下方按鈕連接到 Taiwan HAPI FHIR 測試伺服器</p>
+        </div>
+
+        <!-- Connection Buttons -->
+        <div class="card" id="connectionCard">
+            <h4>🔌 連接選項</h4>
+            <div class="d-grid gap-2 mt-3">
+                <button class="btn btn-primary btn-custom" onclick="connectToFHIR()">
+                    連接到 Taiwan HAPI FHIR 伺服器
+                </button>
+                <button class="btn btn-secondary btn-custom" onclick="useDemoMode()">
+                    使用 Demo 模式（測試資料）
+                </button>
+            </div>
+        </div>
+
+        <!-- Main Content (Hidden until connected) -->
+        <div id="mainContent" style="display: none;">
+            <!-- Tabs -->
+            <ul class="nav nav-tabs card" style="margin-bottom: 0; border-bottom-left-radius: 0; border-bottom-right-radius: 0;">
+                <li class="nav-item">
+                    <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#dashboard-tab">
+                        儀表板
+                    </button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#input-tab">
+                        輸入血壓
+                    </button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#history-tab">
+                        歷史紀錄
+                    </button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#settings-tab">
+                        設定
+                    </button>
+                </li>
+            </ul>
+
+            <div class="tab-content">
+                <!-- Dashboard Tab -->
+                <div class="tab-pane fade show active" id="dashboard-tab">
+                    <div class="card">
+                        <h4>📊 儀表板</h4>
+
+                        <!-- Traffic Light Display -->
+                        <div class="traffic-light-display" id="trafficLightDisplay">
+                            <div class="traffic-light-icon" id="trafficLightIcon">⚪</div>
+                            <div class="traffic-light-label" id="trafficLightLabel">等待輸入</div>
+                            <div class="traffic-light-desc" id="trafficLightDesc">請輸入血壓數值</div>
+                        </div>
+
+                        <!-- Distribution Stats -->
+                        <div class="distribution-stats" id="distributionStats">
+                            <div class="stat-box red">
+                                <div>🔴 紅燈</div>
+                                <div class="stat-number" id="redCount">0</div>
+                                <div id="redPercent">0%</div>
+                            </div>
+                            <div class="stat-box yellow">
+                                <div>🟡 黃燈</div>
+                                <div class="stat-number" id="yellowCount">0</div>
+                                <div id="yellowPercent">0%</div>
+                            </div>
+                            <div class="stat-box green">
+                                <div>🟢 綠燈</div>
+                                <div class="stat-number" id="greenCount">0</div>
+                                <div id="greenPercent">0%</div>
+                            </div>
+                        </div>
+
+                        <!-- BP Chart -->
+                        <h5 class="mt-4">血壓趨勢圖</h5>
+                        <canvas id="bpChart" height="80"></canvas>
+                    </div>
+                </div>
+
+                <!-- Input Tab -->
+                <div class="tab-pane fade" id="input-tab">
+                    <div class="card">
+                        <h4>📝 輸入血壓</h4>
+
+                        <div class="bp-input-group">
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label class="form-label">收縮壓 (Systolic)</label>
+                                    <input type="number" class="form-control bp-input" id="systolicInput"
+                                           placeholder="例如: 135" min="60" max="250">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">舒張壓 (Diastolic)</label>
+                                    <input type="number" class="form-control bp-input" id="diastolicInput"
+                                           placeholder="例如: 85" min="40" max="150">
+                                </div>
+                            </div>
+
+                            <div class="mt-3">
+                                <label class="form-label">測量時間</label>
+                                <input type="datetime-local" class="form-control" id="measurementTime">
+                            </div>
+                        </div>
+
+                        <button class="btn btn-primary btn-custom w-100 mt-3" onclick="submitBP()">
+                            💾 儲存血壓記錄
+                        </button>
+
+                        <div id="submitResult" class="mt-3"></div>
+
+                        <!-- Import from Smartwatch -->
+                        <hr class="my-4">
+                        <h5>📱 匯入智慧手錶資料</h5>
+                        <div class="bp-input-group">
+                            <p class="text-muted mb-3">
+                                支援匯入 JSON 格式的智慧手錶資料（包含血壓、心率、血氧等）
+                            </p>
+                            <div class="mb-3">
+                                <label class="form-label">選擇 JSON 檔案</label>
+                                <input type="file" class="form-control" id="jsonFileInput" accept=".json">
+                                <small class="text-muted">例如: records.json</small>
+                            </div>
+                            <button class="btn btn-info btn-custom w-100" onclick="importSmartwatch()">
+                                📥 匯入資料
+                            </button>
+                            <div id="importResult" class="mt-3"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- History Tab -->
+                <div class="tab-pane fade" id="history-tab">
+                    <div class="card">
+                        <h4>📜 歷史紀錄</h4>
+
+                        <div class="history-table mt-3">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>日期時間</th>
+                                        <th>血壓 (mmHg)</th>
+                                        <th>狀態</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="historyTableBody">
+                                    <tr><td colspan="3" class="text-center">無資料</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Settings Tab -->
+                <div class="tab-pane fade" id="settings-tab">
+                    <div class="card">
+                        <h4>⚙️ 閾值設定</h4>
+
+                        <div class="threshold-settings">
+                            <h5>🔴 紅燈閾值（危險）</h5>
+                            <div class="row g-3 mb-4">
+                                <div class="col-md-6">
+                                    <label class="form-label">收縮壓 ≥</label>
+                                    <input type="number" class="form-control" id="redSystolic" value="160">
+                                    <small class="text-muted">mmHg</small>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">舒張壓 ≥</label>
+                                    <input type="number" class="form-control" id="redDiastolic" value="100">
+                                    <small class="text-muted">mmHg</small>
+                                </div>
+                            </div>
+
+                            <h5>🟡 黃燈閾值（警告）</h5>
+                            <div class="row g-3 mb-4">
+                                <div class="col-md-6">
+                                    <label class="form-label">收縮壓 ≥</label>
+                                    <input type="number" class="form-control" id="yellowSystolic" value="140">
+                                    <small class="text-muted">mmHg</small>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">舒張壓 ≥</label>
+                                    <input type="number" class="form-control" id="yellowDiastolic" value="90">
+                                    <small class="text-muted">mmHg</small>
+                                </div>
+                            </div>
+
+                            <button class="btn btn-success btn-custom" onclick="saveThresholds()">
+                                💾 儲存設定
+                            </button>
+                            <button class="btn btn-secondary btn-custom ms-2" onclick="resetThresholds()">
+                                🔄 重置預設值
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+    <!-- App JS -->
+    <script src="app.js"></script>
+</body>
+</html>
