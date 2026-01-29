@@ -5,62 +5,134 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Launch SMART BP Monitor</title>
     <script src="https://cdn.jsdelivr.net/npm/fhirclient/build/fhir-client.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            padding: 50px;
+            background: #f5f5f5;
+        }
+        .container {
+            max-width: 500px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h2 { color: #333; }
+        .btn {
+            display: block;
+            width: 100%;
+            padding: 15px;
+            margin: 10px 0;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            text-decoration: none;
+            color: white;
+        }
+        .btn-primary { background: #007bff; }
+        .btn-success { background: #28a745; }
+        .btn-secondary { background: #6c757d; }
+        .btn:hover { opacity: 0.9; }
+        #error { color: red; margin-top: 20px; }
+        .info {
+            background: #e7f3ff;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+            text-align: left;
+        }
+        .loading { display: none; }
+        .loading.show { display: block; }
+    </style>
 </head>
 <body>
-    <div style="text-align: center; padding: 50px; font-family: Arial, sans-serif;">
-        <h2>SMART BP Monitor</h2>
-        <p>Connecting to EHR...</p>
-        <div id="error" style="color: red; display: none;"></div>
+    <div class="container">
+        <h2>🏥 SMART BP Monitor</h2>
+
+        <!-- Loading state (shown during OAuth) -->
+        <div id="loading" class="loading">
+            <p>正在連接到 EHR 系統...</p>
+            <p>Connecting to EHR...</p>
+        </div>
+
+        <!-- Manual launch options (shown when no iss parameter) -->
+        <div id="manualLaunch" style="display: none;">
+            <p>選擇啟動方式 / Select Launch Method</p>
+
+            <div class="info">
+                <strong>Taiwan MOHW Sandbox</strong><br>
+                點擊下方按鈕前往衛服部 SMART Sandbox，選擇病患後啟動應用程式。
+            </div>
+
+            <a href="https://thas.mohw.gov.tw/" class="btn btn-primary" target="_blank">
+                🏥 前往 MOHW Sandbox
+            </a>
+
+            <a href="https://thas.mohw.gov.tw/patient-browser/" class="btn btn-success" target="_blank">
+                👤 病患選擇器 (Patient Browser)
+            </a>
+
+            <a href="index.html" class="btn btn-secondary">
+                📊 使用 Demo 模式
+            </a>
+
+            <div class="info" style="margin-top: 20px; font-size: 14px;">
+                <strong>使用說明：</strong><br>
+                1. 前往 MOHW Sandbox<br>
+                2. 登入並選擇病患<br>
+                3. 設定 App Launch URL 為：<br>
+                <code style="background: #f0f0f0; padding: 2px 5px;">
+                    https://zeror10b21022.github.io/SMARTbpMonitor/launch.html
+                </code><br>
+                4. 點擊 Launch 啟動應用程式
+            </div>
+        </div>
+
+        <div id="error" style="display: none;"></div>
     </div>
 
     <script>
         // SMART on FHIR EHR Launch
-        // This page initiates the OAuth2 authorization flow
-
-        // Taiwan MOHW Sandbox FHIR Server URL
-        const MOHW_SANDBOX_ISS = "https://thas.mohw.gov.tw/v/r4/sim/WzIsIiIsIiIsIkFVVE8iLDAsMCwwLCIiLCIiLCIiLCIiLCIiLCIiLCIiLDAsMSwiIl0/fhir";
-
-        // Clear any existing session data to force fresh login
-        sessionStorage.clear();
+        // This page handles OAuth2 authorization flow
 
         // Check URL parameters
         const urlParams = new URLSearchParams(window.location.search);
-        const forceReselect = urlParams.get('reselect') === 'true';
         const issFromUrl = urlParams.get('iss');
+        const launchFromUrl = urlParams.get('launch');
+        const forceReselect = urlParams.get('reselect') === 'true';
 
-        // Build authorize options
-        const authorizeOptions = {
-            // Client ID - for sandbox testing, use a descriptive name
-            // For production, you'll need to register with the EHR vendor
-            clientId: "smart_bp_monitor",
+        // If this is an EHR launch (has iss parameter), proceed with OAuth
+        if (issFromUrl) {
+            document.getElementById('loading').classList.add('show');
 
-            // Requested scopes
-            // - launch: Support EHR launch context
-            // - openid: OpenID Connect for user identity
-            // - fhirUser: Get current user info
-            // - patient/*.read: Read all patient resources
-            // - patient/Observation.write: Write observations (for BP data)
-            scope: "launch openid fhirUser patient/*.read patient/Observation.write",
+            // Clear any existing session data
+            sessionStorage.clear();
 
-            // Redirect to index.html after authorization
-            redirectUri: "index.html"
-        };
+            const authorizeOptions = {
+                clientId: "smart_bp_monitor",
+                scope: "launch openid fhirUser patient/*.read patient/Observation.write",
+                redirectUri: "index.html"
+            };
 
-        // Always use MOHW sandbox as default if no ISS provided in URL
-        // This ensures proper redirect to MOHW patient selection
-        if (!issFromUrl) {
-            authorizeOptions.iss = MOHW_SANDBOX_ISS;
+            // ISS is provided by EHR
+            FHIR.oauth2.authorize(authorizeOptions).catch(function(error) {
+                document.getElementById("loading").classList.remove('show');
+                document.getElementById("error").style.display = "block";
+                document.getElementById("error").innerHTML =
+                    "<strong>Authorization Error:</strong><br>" +
+                    error.message +
+                    "<br><br><a href='index.html'>Continue in Demo Mode</a>";
+            });
         }
-
-        FHIR.oauth2.authorize(authorizeOptions).catch(function(error) {
-            // Display error if authorization fails
-            document.getElementById("error").style.display = "block";
-            document.getElementById("error").innerHTML =
-                "<strong>Authorization Error:</strong><br>" +
-                error.message +
-                "<br><br><a href='index.html'>Continue in Demo Mode</a>" +
-                "<br><br><a href='" + MOHW_SANDBOX_ISS.replace('/fhir', '') + "'>Go to MOHW Sandbox</a>";
-        });
+        // If no iss (user navigated directly or clicked reselect), show manual options
+        else {
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('manualLaunch').style.display = 'block';
+        }
     </script>
 </body>
 </html>
